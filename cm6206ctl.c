@@ -79,7 +79,8 @@ inline uint16_t newvalue(uint16_t oldvalue, uint16_t newmask, uint16_t newbits) 
 #define ANSI_HEADER "\e[33m"    // Orange
 #define ANSI_BOLD   "\e[1m"
 #define ANSI_RESET  "\e[0m"
-#define ANSI_TAB    "\e[44G"    // Column number
+#define ANSI_TAB    "\e[43G"    // Column number
+#define ANSI_TAB2   "\e[67G"    // Column number
 
 // Tuple for list of value/label pairs. Last tuple in list must have value -1 and a default label
 typedef struct { int val; const char *label; } ValLabel;
@@ -103,8 +104,8 @@ void print_reg_bit_txt(unsigned regnum, uint16_t regval, unsigned bit, const cha
     char strbuf[128];
     const char *statetxt = ((regval>>bit & 1) ? ontxt : offtxt);
     sprintf(strbuf, "%s", statetxt);
-    if(0) {     // Verbose values
-        sprintf(strbuf+strlen(strbuf), "\t{1=\"%s\", 0=\"%s\"}", ontxt, offtxt);
+    if(1) {     // Verbose values
+        sprintf(strbuf+strlen(strbuf), "%s {0=\"%s\", 1=\"%s\"}", ANSI_TAB2, offtxt, ontxt);
     }
     print_reg_bit_special(regnum, regval, bit, label, strbuf);
 }
@@ -139,7 +140,7 @@ void print_reg_bit_range_label(unsigned regnum, uint16_t regval, unsigned firstb
     if(!valuetxt)   valuetxt = labels[n].label;     // Choose -1 as default label
     sprintf(strbuf, "%s", valuetxt);
     if(1) {     // Verbose values
-        sprintf(strbuf+strlen(strbuf), "\t{");
+        sprintf(strbuf+strlen(strbuf), "%s {", ANSI_TAB2);
         n=0;
         while (labels[n].val >= 0) {
             sprintf(strbuf+strlen(strbuf), "%u=\"%s\", ", labels[n].val, labels[n].label);
