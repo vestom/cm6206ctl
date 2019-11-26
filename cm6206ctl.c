@@ -5,6 +5,9 @@
 //
 // Bulding:
 // $ gcc cm6206ctl.c -l hidapi-libusb -o cm6206ctl
+//
+// Dependencies:
+// - libhidapi-dev
 
 #include <assert.h>
 #include <err.h>
@@ -71,13 +74,14 @@ inline uint16_t newvalue(uint16_t oldvalue, uint16_t newmask, uint16_t newbits) 
 }
 
 
-/////// Printout of registersfunctions
+/////// Printout of registers functions
 
 #define ANSI_HEADER "\e[33m"    // Orange
 #define ANSI_BOLD   "\e[1m"
 #define ANSI_RESET  "\e[0m"
 #define ANSI_TAB    "\e[44G"    // Column number
 
+// Tuple for list of value/label pairs. Last tuple in list must have value -1 and a default label
 typedef struct { int val; const char *label; } ValLabel;
 
 // Print a header for the provided register
@@ -96,8 +100,13 @@ void print_reg_bit_special(unsigned regnum, uint16_t regval, unsigned bit, const
 
 // Print value of bit in register with provided on/off labels
 void print_reg_bit_txt(unsigned regnum, uint16_t regval, unsigned bit, const char *label, const char *ontxt, const char* offtxt) {
+    char strbuf[128];
     const char *statetxt = ((regval>>bit & 1) ? ontxt : offtxt);
-    print_reg_bit_special(regnum, regval, bit, label, statetxt);
+    sprintf(strbuf, "%s", statetxt);
+    if(0) {     // Verbose values
+        sprintf(strbuf+strlen(strbuf), "\t{1=\"%s\", 0=\"%s\"}", ontxt, offtxt);
+    }
+    print_reg_bit_special(regnum, regval, bit, label, strbuf);
 }
 
 // Print value of bit in register with default on/off labels
