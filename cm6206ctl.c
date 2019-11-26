@@ -11,11 +11,15 @@
 
 #include <assert.h>
 #include <err.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+//#include <unistd.h>
 #include <hidapi/hidapi.h>
+
+//////// Global constants
 
 // USB ID's for C-Media Electronics CM6202
 #define USB_VENDOR_ID   0x0d8c
@@ -27,10 +31,36 @@ static const uint16_t REG_DEFAULT[NUM_REGS] = {
     0x2000,
     0x3002,
     0x6004,
-    0x147f,     // Assuming 48 pin package is most normal
+    0x147f,
     0x0000,
     0x3000
 };
+
+// Register values for initialization
+static const uint16_t REG_INIT[NUM_REGS] = {
+    0x2004,     // Do not assert copyright
+    0x3000,     // Enable SPDIF Out
+    0xF800,     // Enable drivers. Mute Headphone. Disable BTL
+    0x147f,
+    0x0000,
+    0x3000
+};
+
+
+//////// Globals variables
+uint16_t regbuf[NUM_REGS] = {0};    // Register buffer
+
+struct {    // Configuration values
+    bool    verbose;
+    bool    quiet;
+    bool    cmdPrintAll;
+    bool    cmdRead;
+    int         reg;
+    bool    cmdWrite;
+    uint16_t    writeVal;
+    uint16_t    mask;
+    bool    cmdInit;
+} cfg = {0, .mask=0xFFFF};
 
 //////// CM6206 USB read/write functions
 
@@ -69,14 +99,19 @@ int cm6206_write(hid_device *dev, uint8_t regnum, uint16_t value) {
     return 0;
 }
 
-inline uint16_t newvalue(uint16_t oldvalue, uint16_t newmask, uint16_t newbits) {
-    return (oldvalue & ~newmask) | (newbits & newmask);
+
+// Refresh global register buffer (regbuf)
+int readAllRegisters(hid_device *hid_dev) {
+    for(int n=0; n<NUM_REGS; n++) {
+        if (cm6206_read(hid_dev, n, &regbuf[n]) < 0)
+            err(EXIT_FAILURE, "read: %ls, reg: %d", hid_error(hid_dev), n);
+    }
 }
 
 
 /////// Printout of registers functions
 
-#define ANSI_HEADER "\e[33m"    // Orange
+#define ANSI_HEADER "\e[36m"    // Cyan
 #define ANSI_BOLD   "\e[1m"
 #define ANSI_RESET  "\e[0m"
 #define ANSI_TAB    "\e[43G"    // Column number
@@ -104,7 +139,7 @@ void print_reg_bit_txt(unsigned regnum, uint16_t regval, unsigned bit, const cha
     char strbuf[128];
     const char *statetxt = ((regval>>bit & 1) ? ontxt : offtxt);
     sprintf(strbuf, "%s", statetxt);
-    if(1) {     // Verbose values
+    if(cfg.verbose) {     // Verbose values
         sprintf(strbuf+strlen(strbuf), "%s {0=\"%s\", 1=\"%s\"}", ANSI_TAB2, offtxt, ontxt);
     }
     print_reg_bit_special(regnum, regval, bit, label, strbuf);
@@ -139,7 +174,7 @@ void print_reg_bit_range_label(unsigned regnum, uint16_t regval, unsigned firstb
     }
     if(!valuetxt)   valuetxt = labels[n].label;     // Choose -1 as default label
     sprintf(strbuf, "%s", valuetxt);
-    if(1) {     // Verbose values
+    if(cfg.verbose) {     // Verbose values
         sprintf(strbuf+strlen(strbuf), "%s {", ANSI_TAB2);
         n=0;
         while (labels[n].val >= 0) {
@@ -150,10 +185,6 @@ void print_reg_bit_range_label(unsigned regnum, uint16_t regval, unsigned firstb
     }
     print_reg_bit_range(regnum, regval, firstbit, numbits, label, strbuf);
 }
-
-
-
-
 
 void print_cm6202_reg0(uint16_t val) {
     char *s = NULL;
@@ -201,13 +232,13 @@ void print_cm6202_reg2(uint16_t val) {
     print_reg_header(2, val);
     print_reg_bit_def(2, val, 15, "Driver On");
     ValLabel HEADPHONE_SOURCES[] = {
-        {0, "Side channels"},
-        {1, "Surround channels"},
-        {2, "Center and Subwoofer"},
-        {3, "Front channels"},
+        {0, "Side"},
+        {1, "Rear"},
+        {2, "Center/Subwoofer"},
+        {3, "Front"},
         {-1,  "<Reserved>"}
     };
-    print_reg_bit_range_label(2, val, 13, 2, "Headphone Source", HEADPHONE_SOURCES);
+    print_reg_bit_range_label(2, val, 13, 2, "Headphone Source channels", HEADPHONE_SOURCES);
     print_reg_bit_def(2, val, 12, "Mute Headphone Right");
     print_reg_bit_def(2, val, 11, "Mute Headphone Left");
     print_reg_bit_def(2, val, 10, "Mute Rear Surround Right");
@@ -305,42 +336,121 @@ void print_cm6202_reg5(uint16_t val) {
     print_reg_bit_range_label(5, val, 0, 3, "Input source to AD digital filter", AD_FILTER_SOURCES);
 }
 
-////////
+void printHelp(void) {
+    printf("cm6206ctl: Utility to read and control registers of USB sound card with CM6206 chip\n");
+    printf("Build: %s %s\n", __DATE__, __TIME__);
+    printf("\n");
+    printf("Usage: cm6206ctl  [-r <reg> [-m <mask>] [-w <value>]][other options]\n");
+    printf("Generic Options:\n");
+    printf("    -A            Printout content of all registers in decoded form\n");
+    printf("    -h            Print this help text\n");
+    printf("    -m <mask>     Binary mask for reading/writing only some bits (e.g. 0x8000) [default=0xFFFF]\n");
+    printf("    -q            Quiet. Only output necessary values\n");
+    printf("    -r <reg>      Register to read or write\n");
+    printf("    -v            Verbose printout\n");
+    printf("    -w <value>    Write value to selected register\n");
+    printf("Shortcut Options:\n");
+    printf("    -DMASPDIF     Set DMA master to SPDIF (equivalent to '-r 0 -m 0x8000 -w 0x8000')\n");
+    printf("    -DMADAC       Set DMA master to DAC (equivalent to '-r 0 -m 0x8000 -w 0x0000')\n");
+    printf("    -INIT         Initialize all registers to sane default values (same as Linux driver)\n");
+    printf("\n");
+    printf("Examples:\n");
+    printf(" cm6206ctl -A -v                    # Printout content of all registers in verbose form\n");
+    printf(" cm6206ctl -r 0                     # Read content of register 0\n");
+    printf(" cm6206ctl -r 2 -m 0x6000 -q        # Read and only output value of mask bits (example is 'Headphone source')\n");
+    printf(" cm6206ctl -r 0 -w 0 0x8000 -m 0x8000    # Write 1 to bit 15 in register 0\n");
+    printf("\n");
+    printf("Supported devices: (USB)\n");
+    printf(" ID %04x:%04x CM6206\n", USB_VENDOR_ID, USB_PRODUCT_ID);
+}
 
-int main(void) {
-    hid_device *hid_dev;
-    uint16_t regbuf[NUM_REGS] = {0};
+
+void parseArgumentsToConfig(int argc, char* argv[]) {
+    long lval;      // scratchpad
+    int argn = 1;   // argument counter
+    while(argn < argc) {
+        if(strcmp(argv[argn], "-A")==0) {
+            cfg.cmdPrintAll = true;
+        } else if(strcmp(argv[argn], "-h")==0) {
+            printHelp(); exit(0);
+        } else if(strcmp(argv[argn], "-m")==0) {
+            if(argc-argn-1 < 1) { err(EXIT_FAILURE, "-m too few arguments"); }
+            lval = strtol(argv[++argn], NULL, 0);
+            if(lval<0 || lval>0xFFFF) { err(EXIT_FAILURE, "-m value out of range [0;0xFFFF]"); }
+            cfg.mask = lval;
+        } else if(strcmp(argv[argn], "-q")==0) {
+            cfg.quiet = true;
+        } else if(strcmp(argv[argn], "-r")==0) {
+            if(argc-argn-1 < 1) { err(1, "-r too few arguments"); }
+            lval = strtol(argv[++argn], NULL, 0);
+            if(lval<0 || lval>NUM_REGS-1) { err(EXIT_FAILURE, "-r value out of range [0;%u]", NUM_REGS-1); }
+            cfg.reg = lval;
+            cfg.cmdRead = true;
+        } else if(strcmp(argv[argn], "-v")==0) {
+            cfg.verbose = true;
+        } else if(strcmp(argv[argn], "-w")==0) {
+            if(argc-argn-1 < 1) { err(1, "-w too few arguments"); }
+            lval = strtol(argv[++argn], NULL, 0);
+            if(lval<0 || lval>0xFFFF) { err(EXIT_FAILURE, "-w value out of range [0;0xFFFF]"); }
+            cfg.writeVal = lval;
+            cfg.cmdWrite = true;
+        } else if(strcmp(argv[argn], "-DMADAC")==0) {
+            cfg.reg = 0; cfg.mask = 0x8000; cfg.writeVal = 0x0000;
+            cfg.cmdWrite = true;
+        } else if(strcmp(argv[argn], "-DMASPDIF")==0) {
+            cfg.reg = 0; cfg.mask = 0x8000; cfg.writeVal = 0x8000;
+            cfg.cmdWrite = true;
+        } else if(strcmp(argv[argn], "-INIT")==0) {
+            cfg.cmdInit = true;
+        } else {
+            err(EXIT_FAILURE, "Unknown argument \"%s\". Use -h for help", argv[argn]);
+        }
+        argn++;
+    }
+}
+
+
+int main(int argc, char* argv[]) {
+    hid_device *hid_dev;                // USB device handle
+
+    parseArgumentsToConfig(argc, argv);
 
     if ( !(hid_dev = hid_open(USB_VENDOR_ID, USB_PRODUCT_ID, NULL)) )
-        err(1, "Could not open USB device (hid_open: %ls)", hid_error(hid_dev));
+        err(EXIT_FAILURE, "Could not open USB device (hid_open: %ls)", hid_error(hid_dev));
 
-    for(int n=0; n<NUM_REGS; n++) {
-        if (cm6206_read(hid_dev, n, &regbuf[n]) < 0)
-            err(2, "read: %ls, reg: %d", hid_error(hid_dev), n);
-        // printf("REG%d=%04X\n", n, regbuf[n]);
+    // Start by reading all registers
+    readAllRegisters(hid_dev);
+
+    if(cfg.cmdInit) {
+        if(!cfg.quiet) { printf("Initializing registers...\n"); }
+        for(int n=0; n<NUM_REGS; n++) {
+            if (cm6206_write(hid_dev, n, REG_INIT[n]) < 0)
+                err(EXIT_FAILURE, "write: %ls, reg: %d", hid_error(hid_dev), n);
+        }
+        readAllRegisters(hid_dev);
     }
 
-    print_cm6202_reg0(regbuf[0]);
-    print_cm6202_reg1(regbuf[1]);
-    print_cm6202_reg2(regbuf[2]);
-    print_cm6202_reg3(regbuf[3]);
-    print_cm6202_reg4(regbuf[4]);
-    print_cm6202_reg5(regbuf[5]);
+    if(cfg.cmdWrite) {
+        uint16_t newvalue = (regbuf[cfg.reg] & ~cfg.mask) | (cfg.writeVal & cfg.mask);
+        if(!cfg.quiet) { printf("Writing to Register %u, Value 0x%04X, Mask 0x%04X\n", cfg.reg, cfg.writeVal, cfg.mask); }
+        if (cm6206_write(hid_dev, cfg.reg, newvalue) < 0)
+            err(EXIT_FAILURE, "write: %ls, reg: %d", hid_error(hid_dev), cfg.reg);
+        readAllRegisters(hid_dev);  // Refresh
+    }
 
+    if(cfg.cmdRead) {
+        if(!cfg.quiet) { printf("Reading from Register %u, Value 0x%04X, Mask 0x%04X\n", cfg.reg, regbuf[cfg.reg], cfg.mask); }
+        printf("%u\n", (regbuf[cfg.reg] & cfg.mask));
+    }
 
-///// Write!! Set SPDIF sample rate
-//    if (cm106_write(hid_dev, 0, newvalue(reg[0], 0x7000, 0x2000) < 0)
-//        err(3, "write: %ls", hid_error(hid_dev));
-
-
-///// Write!! Set SPDIF as master
-//    if (cm106_write(hid_dev, 0, newvalue(reg[0], 0x8000, 0x8000)) < 0)
-//        err(3, "write: %ls", hid_error(hid_dev));
-
-
-///// Write!! Set DAC as master
-//    if (cm106_write(hid_dev, 0, newvalue(reg[0], 0x8000, 0x0000)) < 0)
-//        err(3, "write: %ls", hid_error(hid_dev));
+    if(cfg.cmdPrintAll) {
+        print_cm6202_reg0(regbuf[0]);
+        print_cm6202_reg1(regbuf[1]);
+        print_cm6202_reg2(regbuf[2]);
+        print_cm6202_reg3(regbuf[3]);
+        print_cm6202_reg4(regbuf[4]);
+        print_cm6202_reg5(regbuf[5]);
+    }
 
     hid_close(hid_dev);
     hid_exit();

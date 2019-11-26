@@ -1,6 +1,7 @@
 cm6206ctl
 
 .vscode/
+*.code-workspace
 
 oldstuff/
 
