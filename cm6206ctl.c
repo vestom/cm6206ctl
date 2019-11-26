@@ -62,7 +62,22 @@ struct {    // Configuration values
     bool    cmdInit;
 } cfg = {0, .mask=0xFFFF};
 
-//////// CM6206 USB read/write functions
+//////// USB read/write functions
+
+void printUSBDevices(void) {
+    printf("Devices:\n");
+    struct hid_device_info *hid_devs = hid_enumerate(USB_VENDOR_ID, USB_PRODUCT_ID);
+    if(hid_devs == NULL) {
+        printf(" Found no USB devices with ID %04X:%04X\n", USB_VENDOR_ID, USB_PRODUCT_ID);
+        return;
+    }
+    struct hid_device_info *hd = hid_devs;
+    while(hd) {
+        printf(" [%s] Serial: %ls, Manufacturer: %ls, Product: %ls\n", hd->path, hd->serial_number, hd->manufacturer_string, hd->product_string);
+        hd = hd->next;
+    }
+    hid_free_enumeration(hid_devs);
+}
 
 int cm6206_read(hid_device *dev, uint8_t regnum, uint16_t *value) {
     uint8_t buf[5] = {0x00, // USB Report ID
@@ -417,6 +432,8 @@ int main(int argc, char* argv[]) {
 
     if ( !(hid_dev = hid_open(USB_VENDOR_ID, USB_PRODUCT_ID, NULL)) )
         err(EXIT_FAILURE, "Could not open USB device (hid_open: %ls)", hid_error(hid_dev));
+
+    if(!cfg.quiet) { printUSBDevices(); }
 
     // Start by reading all registers
     readAllRegisters(hid_dev);
