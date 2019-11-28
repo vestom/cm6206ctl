@@ -275,7 +275,9 @@ void print_cm6202_reg3(uint16_t val) {
     sprintf(sbuf, "%u", (val>>11 & 7));
     print_reg_bit_range(3, val, 11, 2, "Sensitivity to FLY tuner volume", sbuf);
     print_reg_bit_txt(3, val, 10, "Microphone bias voltage", "2.25 V", "4.5 V");
-    print_reg_bit_txt(3, val, 9, "Mix MIC/Line In to", "All 8 Channels", "Front Out Only");
+    // Note:  Bit 9 is inverted compared to the description in the datasheet.
+    //          However tests have proven the datasheet wrong...
+    print_reg_bit_txt(3, val, 9, "Mix MIC/Line In to", "Front Out Only", "All 8 Channels");
     static const ValLabel SPDIF_IN_HZ[] = {
         {0, "44.1 kHz"},    // Marked as reserved, but seems to work!
         {2, "48 kHz"},
@@ -373,8 +375,10 @@ void printHelp(void) {
     printf("    -v            Verbose printout\n");
     printf("    -w <value>    Write value to selected register\n");
     printf("Shortcut Options:\n");
-    printf("    -DMASPDIF     Set DMA master to SPDIF (equivalent to '-r 0 -m 0x8000 -w 0x8000')\n");
-    printf("    -DMADAC       Set DMA master to DAC (equivalent to '-r 0 -m 0x8000 -w 0x0000')\n");
+    printf("    -DMASPDIF     Set DMA master to SPDIF               (equivalent to '-r 0 -m 0x8000 -w 0x8000')\n");
+    printf("    -DMADAC       Set DMA master to DAC                 (equivalent to '-r 0 -m 0x8000 -w 0x0000')\n");
+    printf("    -MIXFRONT     Mix LineIn/Mic to Front channels only (equivalent to '-r 3 -m 0x0200 -w 0x0200')\n");
+    printf("    -MIX8CH       Mix LineIn/Mic to all 8 Channels      (equivalent to '-r 3 -m 0x0200 -w 0x0000')\n");
     printf("    -INIT         Initialize all registers to sane default values (same as Linux driver)\n");
     printf("\n");
     printf("Examples:\n");
@@ -422,6 +426,12 @@ void parseArgumentsToConfig(int argc, char* argv[]) {
             cfg.cmdWrite = true;
         } else if(strcmp(argv[argn], "-DMASPDIF")==0) {
             cfg.reg = 0; cfg.mask = 0x8000; cfg.writeVal = 0x8000;
+            cfg.cmdWrite = true;
+        } else if(strcmp(argv[argn], "-MIXFRONT")==0) {
+            cfg.reg = 3; cfg.mask = 0x0200; cfg.writeVal = 0x0200;
+            cfg.cmdWrite = true;
+        } else if(strcmp(argv[argn], "-MIX8CH")==0) {
+            cfg.reg = 3; cfg.mask = 0x0200; cfg.writeVal = 0x0000;
             cfg.cmdWrite = true;
         } else if(strcmp(argv[argn], "-INIT")==0) {
             cfg.cmdInit = true;
