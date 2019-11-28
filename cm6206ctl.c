@@ -93,7 +93,7 @@ int cm6206_read(hid_device *dev, uint8_t regnum, uint16_t *value) {
     if (hid_read(dev, buf, sizeof(buf)) != 3)
         return -2;
 
-    if (buf[0] & 0xe0 != 0x20)    // No register data in the input report
+    if ((buf[0] & 0xe0) != 0x20)    // No register data in the input report
         return -3;
 
     *value = (((uint16_t)buf[2]) << 8) | buf[1];
@@ -116,7 +116,7 @@ int cm6206_write(hid_device *dev, uint8_t regnum, uint16_t value) {
 
 
 // Refresh global register buffer (regbuf)
-int readAllRegisters(hid_device *hid_dev) {
+void readAllRegisters(hid_device *hid_dev) {
     for(int n=0; n<NUM_REGS; n++) {
         if (cm6206_read(hid_dev, n, &regbuf[n]) < 0)
             err(EXIT_FAILURE, "read: %ls, reg: %d", hid_error(hid_dev), n);
@@ -138,8 +138,9 @@ typedef struct { int val; const char *label; } ValLabel;
 // Print a header for the provided register
 void print_reg_header(unsigned regnum, uint16_t regval) {
     const char *HILIGHT = (regval == REG_DEFAULT[regnum]) ? ANSI_RESET: ANSI_BOLD;
-    printf("%s== REG%u ==%s\n", ANSI_HEADER, regnum, ANSI_RESET);
-    printf("%sRaw value: 0x%04X%s       (Reset value: 0x%04X)\n", HILIGHT, regval, ANSI_RESET, REG_DEFAULT[regnum]);
+    printf("%s== REG%u == %s", ANSI_HEADER, regnum, ANSI_RESET);
+    printf("\t\t%sRaw value: 0x%04X%s\t\t (Reset value: 0x%04X)\n",
+        HILIGHT, regval, ANSI_RESET, REG_DEFAULT[regnum]);
 }
 
 // Print value of bit in register with provided label
@@ -202,8 +203,7 @@ void print_reg_bit_range_label(unsigned regnum, uint16_t regval, unsigned firstb
 }
 
 void print_cm6202_reg0(uint16_t val) {
-    char *s = NULL;
-    char sbuf[5];
+    char sbuf[8];
     static const ValLabel SPDIF_OUT_HZ[] = {
         {0, "44.1 kHz"},    // Marked as reserved, but seems to work!
         {2, "48 kHz"},
@@ -211,7 +211,6 @@ void print_cm6202_reg0(uint16_t val) {
         {6, "96 kHz"},
         {-1, "Reserved"}
     };
-    print_reg_header(0, val);
     print_reg_bit_txt(0, val, 15, "DMA Master", "SPDIF Out", "DAC");
     print_reg_bit_range_label(0, val, 12, 3, "SPDIF Out sample rate", SPDIF_OUT_HZ);
     sprintf(sbuf, "%u", (val>>4 & 0xFF));
@@ -223,7 +222,6 @@ void print_cm6202_reg0(uint16_t val) {
 }
 
 void print_cm6202_reg1(uint16_t val) {
-    print_reg_header(1, val);
     print_reg_bit_special(1, val, 15, "<Reserved>", "");
     print_reg_bit_txt(1, val, 14, "SEL Clk (test)", "22.58 MHz", "24.576 MHz");
     print_reg_bit_def(1, val, 13, "PLL binary search Enable");
@@ -243,8 +241,6 @@ void print_cm6202_reg1(uint16_t val) {
 }
 
 void print_cm6202_reg2(uint16_t val) {
-    char *s = NULL;
-    print_reg_header(2, val);
     print_reg_bit_def(2, val, 15, "Driver On");
     ValLabel HEADPHONE_SOURCES[] = {
         {0, "Side"},
@@ -274,9 +270,7 @@ void print_cm6202_reg2(uint16_t val) {
 }
 
 void print_cm6202_reg3(uint16_t val) {
-    char *s = NULL;
-    char sbuf[5];
-    print_reg_header(3, val);
+    char sbuf[8];
     print_reg_bit_range(3, val, 14, 2, "<Reserved>", "");
     sprintf(sbuf, "%u", (val>>11 & 7));
     print_reg_bit_range(3, val, 11, 2, "Sensitivity to FLY tuner volume", sbuf);
@@ -299,8 +293,6 @@ void print_cm6202_reg3(uint16_t val) {
 }
 
 void print_cm6202_reg4(uint16_t val) {
-    char *s = NULL;
-    print_reg_header(4, val);
     print_reg_bit_def(4, val, 15, "GPIO12 Out Status");
     print_reg_bit_def(4, val, 14, "GPIO12 Out Enable");
     print_reg_bit_def(4, val, 13, "GPIO11 Out Status");
@@ -320,8 +312,6 @@ void print_cm6202_reg4(uint16_t val) {
 }
 
 void print_cm6202_reg5(uint16_t val) {
-    char *s = NULL;
-    print_reg_header(5, val);
     print_reg_bit_range(5, val, 14, 2, "<Reserved>", "");
     print_reg_bit_def(5, val, 13, "DAC Not Reset");
     print_reg_bit_def(5, val, 12, "ADC Not Reset");
@@ -350,6 +340,24 @@ void print_cm6202_reg5(uint16_t val) {
     };
     print_reg_bit_range_label(5, val, 0, 3, "Input source to AD digital filter", AD_FILTER_SOURCES);
 }
+
+void print_cm6202_regs(void) {
+    for(int n=0; n<NUM_REGS; n++) {
+        print_reg_header(n, regbuf[n]);
+        if(!cfg.quiet) {
+            switch(n) {
+                case 0: print_cm6202_reg0(regbuf[n]); break;
+                case 1: print_cm6202_reg1(regbuf[n]); break;
+                case 2: print_cm6202_reg2(regbuf[n]); break;
+                case 3: print_cm6202_reg3(regbuf[n]); break;
+                case 4: print_cm6202_reg4(regbuf[n]); break;
+                case 5: print_cm6202_reg5(regbuf[n]); break;
+                default: assert(0);
+            }
+        }
+    }
+}
+
 
 void printHelp(void) {
     printf("cm6206ctl: Utility to read and control registers of USB sound card with CM6206 chip\n");
@@ -461,12 +469,7 @@ int main(int argc, char* argv[]) {
     }
 
     if(cfg.cmdPrintAll) {
-        print_cm6202_reg0(regbuf[0]);
-        print_cm6202_reg1(regbuf[1]);
-        print_cm6202_reg2(regbuf[2]);
-        print_cm6202_reg3(regbuf[3]);
-        print_cm6202_reg4(regbuf[4]);
-        print_cm6202_reg5(regbuf[5]);
+        print_cm6202_regs();
     }
 
     hid_close(hid_dev);
