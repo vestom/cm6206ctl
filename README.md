@@ -41,7 +41,7 @@ Raw value: 0x3000       (Reset value: 0x3002)
 ```
 $ ./cm6206ctl -h
 cm6206ctl: Utility to read and control registers of USB sound card with CM6206 chip
-Build: Nov 26 2019 13:37:25
+Build: Dec  1 2019 21:34:50
 
 Usage: cm6206ctl  [-r <reg> [-m <mask>] [-w <value>]][other options]
 Generic Options:
@@ -53,9 +53,14 @@ Generic Options:
     -v            Verbose printout
     -w <value>    Write value to selected register
 Shortcut Options:
-    -DMASPDIF     Set DMA master to SPDIF (equivalent to '-r 0 -m 0x8000 -w 0x8000')
-    -DMADAC       Set DMA master to DAC (equivalent to '-r 0 -m 0x8000 -w 0x0000')
-    -INIT         Initialize all registers to sane default values (same as Linux driver)
+    +DMASPDIF     Set DMA master to SPDIF               (equivalent to '-r 0 -m 0x8000 -w 0x8000')
+    -DMASPDIF     Set DMA master to DAC (*)             (equivalent to '-r 0 -m 0x8000 -w 0x0000')
+    +MIXSPDIFIN   Mix SPDIF In to Out                   (equivalent to '-r 1 -m 0x0001 -w 0x0001')
+    -MIXSPDIFIN   Do not mix SPDIF In to Out (*)        (equivalent to '-r 1 -m 0x0001 -w 0x0000')
+    +MIXFRONT     Mix LineIn/Mic to Front channels only (equivalent to '-r 3 -m 0x0200 -w 0x0200')
+    -MIXFRONT     Mix LineIn/Mic to all 8 Channels (*)  (equivalent to '-r 3 -m 0x0200 -w 0x0000')
+    +INIT         Initialize all registers to sane default values (same as Linux driver)
+ (*) = Default
 
 Examples:
  cm6206ctl -A -v                    # Printout content of all registers in verbose form

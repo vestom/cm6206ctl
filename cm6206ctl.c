@@ -375,11 +375,14 @@ void printHelp(void) {
     printf("    -v            Verbose printout\n");
     printf("    -w <value>    Write value to selected register\n");
     printf("Shortcut Options:\n");
-    printf("    -DMASPDIF     Set DMA master to SPDIF               (equivalent to '-r 0 -m 0x8000 -w 0x8000')\n");
-    printf("    -DMADAC       Set DMA master to DAC                 (equivalent to '-r 0 -m 0x8000 -w 0x0000')\n");
-    printf("    -MIXFRONT     Mix LineIn/Mic to Front channels only (equivalent to '-r 3 -m 0x0200 -w 0x0200')\n");
-    printf("    -MIX8CH       Mix LineIn/Mic to all 8 Channels      (equivalent to '-r 3 -m 0x0200 -w 0x0000')\n");
-    printf("    -INIT         Initialize all registers to sane default values (same as Linux driver)\n");
+    printf("    +DMASPDIF     Set DMA master to SPDIF               (equivalent to '-r 0 -m 0x8000 -w 0x8000')\n");
+    printf("    -DMASPDIF     Set DMA master to DAC (*)             (equivalent to '-r 0 -m 0x8000 -w 0x0000')\n");
+    printf("    +MIXSPDIFIN   Mix SPDIF In to Out                   (equivalent to '-r 1 -m 0x0001 -w 0x0001')\n");
+    printf("    -MIXSPDIFIN   Do not mix SPDIF In to Out (*)        (equivalent to '-r 1 -m 0x0001 -w 0x0000')\n");
+    printf("    +MIXFRONT     Mix LineIn/Mic to Front channels only (equivalent to '-r 3 -m 0x0200 -w 0x0200')\n");
+    printf("    -MIXFRONT     Mix LineIn/Mic to all 8 Channels (*)  (equivalent to '-r 3 -m 0x0200 -w 0x0000')\n");
+    printf("    +INIT         Initialize all registers to sane default values (same as Linux driver)\n");
+    printf(" (*) = Default\n");
     printf("\n");
     printf("Examples:\n");
     printf(" cm6206ctl -A -v                    # Printout content of all registers in verbose form\n");
@@ -421,19 +424,25 @@ void parseArgumentsToConfig(int argc, char* argv[]) {
             if(lval<0 || lval>0xFFFF) { err(EXIT_FAILURE, "-w value out of range [0;0xFFFF]"); }
             cfg.writeVal = lval;
             cfg.cmdWrite = true;
-        } else if(strcmp(argv[argn], "-DMADAC")==0) {
-            cfg.reg = 0; cfg.mask = 0x8000; cfg.writeVal = 0x0000;
-            cfg.cmdWrite = true;
-        } else if(strcmp(argv[argn], "-DMASPDIF")==0) {
+        } else if(strcmp(argv[argn], "+DMASPDIF")==0) {
             cfg.reg = 0; cfg.mask = 0x8000; cfg.writeVal = 0x8000;
             cfg.cmdWrite = true;
-        } else if(strcmp(argv[argn], "-MIXFRONT")==0) {
+        } else if(strcmp(argv[argn], "-DMASPDIF")==0) {
+            cfg.reg = 0; cfg.mask = 0x8000; cfg.writeVal = 0x0000;
+            cfg.cmdWrite = true;
+        } else if(strcmp(argv[argn], "+MIXSPDIFIN")==0) {
+            cfg.reg = 1; cfg.mask = 0x0001; cfg.writeVal = 0x0001;
+            cfg.cmdWrite = true;
+        } else if(strcmp(argv[argn], "-MIXSPDIFIN")==0) {
+            cfg.reg = 1; cfg.mask = 0x0001; cfg.writeVal = 0x0000;
+            cfg.cmdWrite = true;
+        } else if(strcmp(argv[argn], "+MIXFRONT")==0) {
             cfg.reg = 3; cfg.mask = 0x0200; cfg.writeVal = 0x0200;
             cfg.cmdWrite = true;
-        } else if(strcmp(argv[argn], "-MIX8CH")==0) {
+        } else if(strcmp(argv[argn], "-MIXFRONT")==0) {
             cfg.reg = 3; cfg.mask = 0x0200; cfg.writeVal = 0x0000;
             cfg.cmdWrite = true;
-        } else if(strcmp(argv[argn], "-INIT")==0) {
+        } else if(strcmp(argv[argn], "+INIT")==0) {
             cfg.cmdInit = true;
         } else {
             err(EXIT_FAILURE, "Unknown argument \"%s\". Use -h for help", argv[argn]);
