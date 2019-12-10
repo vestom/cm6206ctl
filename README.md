@@ -30,7 +30,7 @@ Raw value: 0x3000       (Reset value: 0x3002)
 ## Building
 
 ### Dependencies
-- libhidapi-dev
+- [libhidapi-dev](https://github.com/libusb/hidapi)
 
 ### Make
 ```$ gcc cm6206ctl.c -l hidapi-libusb -o cm6206ctl```
@@ -87,5 +87,6 @@ The program requires access to USB HID devices, which are normally only accessib
 - [Sound card performance test](http://www.daqarta.com/dw_gguu.htm)
 
 ### Devices
-- [Noname $10 5.1 USB Sound card](https://www.aliexpress.com/wholesale?SearchText=cm6206) (tested - works!)- [Delock USB Sound Box 7.1](https://www.delock.com/produkte/G_61803/merkmale.html) (tested - works!)
+- [Noname $10 5.1 USB Sound card](https://www.aliexpress.com/wholesale?SearchText=cm6206) (tested - works!)
+- [Delock USB Sound Box 7.1](https://www.delock.com/produkte/G_61803/merkmale.html) (tested - works!)
 - [LogiLink USB Sound Box 7.1](https://www.2direct.de/notebook-computer/adapter/usb-2.0/audio/433/usb-sound-box-7.1-8-kanal) (not tested)
