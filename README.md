@@ -6,8 +6,7 @@ The program is made for Linux, but should be portable to Windows, if anybody wou
 Screenshot:
 ```
 $ ./cm6206ctl -A -v
-Devices:
- [0001:000e:03] Serial: (null), Manufacturer: (null), Product: USB Sound Device
+Device: (null), USB Sound Device        , (null)
 == REG0 ==
 Raw value: 0x2004       (Reset value: 0x2000)
 [15] DMA Master                            DAC                     {0="DAC", 1="SPDIF Out"}
@@ -41,11 +40,13 @@ Raw value: 0x3000       (Reset value: 0x3002)
 ```
 $ ./cm6206ctl -h
 cm6206ctl: Utility to read and control registers of USB sound card with CM6206 chip
-Build: Dec  1 2019 21:34:50
+Build: Dec 10 2019 13:32:23
 
 Usage: cm6206ctl  [-r <reg> [-m <mask>] [-w <value>]][other options]
 Generic Options:
     -A            Printout content of all registers in decoded form
+    -D            List all available devices
+    -d <device>   Select device as returned by -D (e.g. '0001:0012:03')
     -h            Print this help text
     -m <mask>     Binary mask for reading/writing only some bits (e.g. 0x8000) [default=0xFFFF]
     -q            Quiet. Only output necessary values
@@ -69,7 +70,7 @@ Examples:
  cm6206ctl -r 0 -w 0 0x8000 -m 0x8000    # Write 1 to bit 15 in register 0
 
 Supported devices: (USB)
- ID 0d8c:0102 CM6206
+ ID 0d8c:0102  C-Media CM6206 or CM6206_LX
 ```
 
 ### Access rights ###
@@ -86,6 +87,5 @@ The program requires access to USB HID devices, which are normally only accessib
 - [Sound card performance test](http://www.daqarta.com/dw_gguu.htm)
 
 ### Devices
-- [Delock USB Sound Box 7.1](https://www.delock.com/produkte/G_61803/merkmale.html) (tested - works!)
+- [Noname $10 5.1 USB Sound card](https://www.aliexpress.com/wholesale?SearchText=cm6206) (tested - works!)- [Delock USB Sound Box 7.1](https://www.delock.com/produkte/G_61803/merkmale.html) (tested - works!)
 - [LogiLink USB Sound Box 7.1](https://www.2direct.de/notebook-computer/adapter/usb-2.0/audio/433/usb-sound-box-7.1-8-kanal) (not tested)
-- [Noname $10 5.1 USB Sound card](https://www.aliexpress.com/wholesale?SearchText=cm6206) (not tested)

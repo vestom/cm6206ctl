@@ -60,24 +60,44 @@ struct {    // Configuration values
     uint16_t    writeVal;
     uint16_t    mask;
     bool    cmdInit;
+    char    *devicePath;
 } cfg = {0, .mask=0xFFFF};
 
-//////// USB read/write functions
 
-void printUSBDevices(void) {
-    printf("Devices:\n");
+//////// USB device information printout
+
+void printAvailableUSBDevices(void) {
+    printf("Devices found:\n");
+    printf("<device>, <Manufacturer>, <Product>, <Serial Number>\n");
     struct hid_device_info *hid_devs = hid_enumerate(USB_VENDOR_ID, USB_PRODUCT_ID);
     if(hid_devs == NULL) {
-        printf(" Found no USB devices with ID %04X:%04X\n", USB_VENDOR_ID, USB_PRODUCT_ID);
+        printf(" Found no USB devices with ID %04x:%04x\n", USB_VENDOR_ID, USB_PRODUCT_ID);
         return;
     }
     struct hid_device_info *hd = hid_devs;
     while(hd) {
-        printf(" [%s] Serial: %ls, Manufacturer: %ls, Product: %ls\n", hd->path, hd->serial_number, hd->manufacturer_string, hd->product_string);
+        printf("%s, %ls, %ls, %ls\n",
+            hd->path, hd->manufacturer_string, hd->product_string, hd->serial_number);
         hd = hd->next;
     }
     hid_free_enumeration(hid_devs);
 }
+
+void printUSBDeviceInfo(hid_device *hid_dev) {
+    #define BUFLEN (64)
+    wchar_t strManuf[BUFLEN] = L"(null)";
+    wchar_t strProduct[BUFLEN] = L"(null)";
+    wchar_t strSerial[BUFLEN] = L"(null)";
+
+    hid_get_manufacturer_string(hid_dev, strManuf, BUFLEN);
+    hid_get_product_string(hid_dev, strProduct, BUFLEN);
+    hid_get_serial_number_string(hid_dev, strSerial, BUFLEN);
+
+    printf("Device: %ls, %ls, %ls\n", strManuf, strProduct, strSerial);
+}
+
+
+//////// CM6206 specific USB read/write functions
 
 int cm6206_read(hid_device *dev, uint8_t regnum, uint16_t *value) {
     uint8_t buf[5] = {0x00, // USB Report ID
@@ -368,6 +388,8 @@ void printHelp(void) {
     printf("Usage: cm6206ctl  [-r <reg> [-m <mask>] [-w <value>]][other options]\n");
     printf("Generic Options:\n");
     printf("    -A            Printout content of all registers in decoded form\n");
+    printf("    -D            List all available devices\n");
+    printf("    -d <device>   Select device as returned by -D (e.g. '0001:0012:03')\n");
     printf("    -h            Print this help text\n");
     printf("    -m <mask>     Binary mask for reading/writing only some bits (e.g. 0x8000) [default=0xFFFF]\n");
     printf("    -q            Quiet. Only output necessary values\n");
@@ -391,7 +413,7 @@ void printHelp(void) {
     printf(" cm6206ctl -r 0 -w 0 0x8000 -m 0x8000    # Write 1 to bit 15 in register 0\n");
     printf("\n");
     printf("Supported devices: (USB)\n");
-    printf(" ID %04x:%04x CM6206\n", USB_VENDOR_ID, USB_PRODUCT_ID);
+    printf(" ID %04x:%04x  C-Media CM6206 or CM6206_LX\n", USB_VENDOR_ID, USB_PRODUCT_ID);
 }
 
 
@@ -401,6 +423,11 @@ void parseArgumentsToConfig(int argc, char* argv[]) {
     while(argn < argc) {
         if(strcmp(argv[argn], "-A")==0) {
             cfg.cmdPrintAll = true;
+        } else if(strcmp(argv[argn], "-D")==0) {
+            printAvailableUSBDevices(); exit(0);
+        } else if(strcmp(argv[argn], "-d")==0) {
+            if(argc-argn-1 < 1) { err(EXIT_FAILURE, "-d too few arguments"); }
+            cfg.devicePath = argv[++argn];
         } else if(strcmp(argv[argn], "-h")==0) {
             printHelp(); exit(0);
         } else if(strcmp(argv[argn], "-m")==0) {
@@ -457,10 +484,17 @@ int main(int argc, char* argv[]) {
 
     parseArgumentsToConfig(argc, argv);
 
-    if ( !(hid_dev = hid_open(USB_VENDOR_ID, USB_PRODUCT_ID, NULL)) )
-        err(EXIT_FAILURE, "Could not open USB device (hid_open: %ls)", hid_error(hid_dev));
+    if(cfg.devicePath) {    // Open by path or ID
+        hid_dev = hid_open_path(cfg.devicePath);
+    } else {
+        hid_dev = hid_open(USB_VENDOR_ID, USB_PRODUCT_ID, NULL);
+    }
+    if(!hid_dev) {
+        err(EXIT_FAILURE, "Could not open USB device %s (hid_open: %ls)",
+            cfg.devicePath, hid_error(hid_dev));
+    }
 
-    if(!cfg.quiet) { printUSBDevices(); }
+    if(!cfg.quiet) { printUSBDeviceInfo(hid_dev); }
 
     // Start by reading all registers
     readAllRegisters(hid_dev);
