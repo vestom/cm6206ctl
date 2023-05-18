@@ -410,7 +410,7 @@ void printHelp(void) {
     printf(" cm6206ctl -A -v                    # Printout content of all registers in verbose form\n");
     printf(" cm6206ctl -r 0                     # Read content of register 0\n");
     printf(" cm6206ctl -r 2 -m 0x6000 -q        # Read and only output value of mask bits (example is 'Headphone source')\n");
-    printf(" cm6206ctl -r 0 -w 0 0x8000 -m 0x8000    # Write 1 to bit 15 in register 0\n");
+    printf(" cm6206ctl -r 0 -w 0x8000 -m 0x8000    # Write 1 to bit 15 in register 0\n");
     printf("\n");
     printf("Supported devices: (USB)\n");
     printf(" ID %04x:%04x  C-Media CM6206 or CM6206_LX\n", USB_VENDOR_ID, USB_PRODUCT_ID);
